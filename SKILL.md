@@ -2,7 +2,7 @@
 name: daily-card
 description: 生成「每日一句 / 打卡」风格社交卡片图，适用于朋友圈、公众号、小红书。当用户要求做卡片图、日签、打卡图、语录海报、带标题+副标题+日期的分享图，或要调整主题配色/贴纸元素、从背景图自动取配色时使用。触发词：每日一句、打卡图、日签、分享图、朋友圈配图、小红书封面、公众号首图、卡片生成、daily card、社交卡片。
 license: MIT
-version: "0.4.0"
+version: "0.5.0"
 compatibility: "Python 3.9+、Pillow、系统需有中文字体（macOS 自带；Linux 需 Noto Sans CJK）"
 ---
 
@@ -88,16 +88,19 @@ python3 cardgen.py "黄昏是白天给夜晚的回信" "今天也辛苦了" \
 | 后端 | 何时需要 | 启用方式 |
 | --- | --- | --- |
 | 无（默认） | 只要用 CLI 生成卡片 | 什么都不做，直接 `python3 cardgen.py ...` |
-| 本地网页后台 | 要 GUI、实时预览、可视化改主题 | `python3 server.py`，接口在 `http://127.0.0.1:8777` |
-| 远程服务器 | 团队共享、agent 需要稳定端点 | 自行部署后设 `DAILY_CARD_URL`，把 API 基址换掉 |
+| 本地网页后台（独立模式） | 要 GUI、实时预览、可视化改主题 | `python3 server.py`，同时托管页面与 API，接口在 `http://127.0.0.1:8777` |
+| 远程服务器（纯 API 模式） | 团队共享、agent 需要稳定端点 | `python3 server.py --api-only` + nginx 子路径反代，设 `DAILY_CARD_URL` |
+
+`--api-only` 下后端只回答 `/api/*`（静态由 nginx 直出），`/api/reveal` 返回 403；`GET /api/health` 回显 `version` / `mode` / `serves_static` / `config_dir`，可用于核对线上版本。
 
 CLI 始终在调用方本机执行，与后端无关。**没有启动服务时不要调 `/api/*`**，会连接失败。
 
 ### 本地网页后台（可视化配置 + 实时预览）
 
 ```bash
-python3 server.py                 # http://127.0.0.1:8777
+python3 server.py                 # http://127.0.0.1:8777（独立模式）
 python3 server.py --port 9000 --open
+python3 server.py --api-only       # 云部署：只提供 API，静态由 nginx 托管
 # macOS 也可双击 start-server.command
 ```
 
@@ -105,10 +108,26 @@ python3 server.py --port 9000 --open
 
 主题配置面板是三栏：主题列表 / 编辑器 / **实时效果预览**。编辑颜色、背景纹样、深色开关、贴纸时，右侧会立刻显示尚未保存的草稿效果，包括真实卡片、配色语义图（标注 10 个颜色各用在哪、当前纹样实际长什么样）、贴纸在该配色下的样子，以及 WCAG 对比度/明暗一致性诊断。预览只读内存，**不会写 `config/themes.json`**，满意后点「保存配置」才落盘。
 
+### 同域名子路径部署（云服务器）
+
+前端 URL 全部由 `web/app.js` 顶部的运行时 `BASE` 派生（`document.baseURI`），源码不写死域名根路径；`index.html` 的 `style.css` / `app.js` 也用相对路径。需要把 API 指向独立域名时，在加载 `app.js` 前设置 `window.DAILY_CARD_BASE`。nginx 负责把 `/daily-card/api/*` 剥前缀成 `/api/*`，**后端路由无需改动**。
+
+| 命令 | 作用 |
+| --- | --- |
+| `./scripts/publish-web.sh` | 发布 `web/` 到版本目录并原子切换 `current` 软链 |
+| `./scripts/publish-web.sh --list` | 查看已发布版本与当前指向 |
+| `./scripts/publish-web.sh --rollback [ver]` | 秒回滚，不需要重启 Python |
+| `./scripts/test_subpath.py` | 进程内模拟 nginx 剥前缀，10 项链路断言 |
+
+前端静态版本可独立于后端发版与回滚。可用 `DAILY_CARD_WEB_ROOT`（默认 `/opt/daily-card-web`）与 `DAILY_CARD_WEB_KEEP`（默认 5）覆盖。**尾斜杠是硬要求**：`/daily-card` 必须 301 到 `/daily-card/`，否则相对路径会解析回域名根。完整 nginx 配置、systemd、缓存与鉴权见 `docs/DEPLOY.md`。
+
+agent 调远程接口时，`DAILY_CARD_URL` 要填到**前缀**为止，例如 `https://host/daily-card`，代码会拼成 `https://host/daily-card/api/save`；不要填成裸域名。
+
 ### JSON 接口（agent 可直接调用，无需浏览器）
 
 | 接口 | 说明 |
 | --- | --- |
+| `GET /api/health` | 健康检查：版本、运行模式、配置目录（无需启动前端） |
 | `GET /api/bootstrap` | 一次拿到 themes_doc / settings / registry / platforms / 路径 |
 | `POST /api/render` | 生成预览，返回 `{png: dataURL, path, theme, size, bytes}` |
 | `POST /api/save` | 生成并写入 `output/`，返回落盘路径 |
@@ -213,12 +232,13 @@ open("/tmp/draft-card.png", "wb").write(base64.b64decode(r["card"].split(",", 1)
 | 端 | 更新方式 | 私有配置 |
 | --- | --- | --- |
 | 本机 / 云服务器 | `git pull && ./install.sh` | 不受影响，不会覆盖 |
+| 云服务器前端静态版本 | `./scripts/publish-web.sh`，`--rollback` 可秒回滚 | 与 Python 服务解耦，不需重启 |
 | 本机 skill 注册 | `./install.sh --link-skill` 建符号链接，避免文件副本漂移 | 不受影响 |
 | skillhub 等平台快照 | 维护者打 tag 后重新导入，天然有版本滞后 | 平台只拿到出厂模板 |
 
 出厂模板 `themes.default.json` 随版本更新，使用者私有的 `themes.json` 永不覆盖。需要把新出厂主题合进自己的配置时，手动从 `themes.default.json` 拷贝对应条目，或在后台用「导出 JSON → 合并 → 导入」，不要直接执行 `--init-config` / `/api/config/reset`。
 
-服务器部署与 CI/CD 接入说明见 `docs/DEPLOY.md`。
+服务器部署与 CI/CD 接入说明见 `docs/DEPLOY.md`。`scripts/selfcheck.sh` 共 8 步，包含前端路径可移植性检查与子路径部署模拟（进程内起代理，不需要真的装 nginx）。
 
 ## Agent 推荐工作流
 
@@ -235,7 +255,8 @@ open("/tmp/draft-card.png", "wb").write(base64.b64decode(r["card"].split(",", 1)
 - `output/`、`uploads/`、`config/themes.json`、`config/settings.json`、`.env` 均被 `.gitignore` 忽略；`examples/` 是 demo 成品图（约 6.7 MB，不参与运行，可随时删除）。
 - 主题 ID 只允许字母数字 `-` `_`；颜色必须是 `#RRGGBB`；贴纸 ID 必须存在于 `config/stickers.json`。
 - 图片尺寸越大、超采样越高越慢；默认 2x 超采样已够清晰。
-- `server.py` **零鉴权**且默认只监听 `127.0.0.1`。公开部署前务必自行加反向代理鉴权或 IP 白名单，详见 `docs/DEPLOY.md`。
+- `server.py` **零鉴权**且默认只监听 `127.0.0.1`。公开部署前务必加反向代理鉴权或 IP 白名单；云部署用 `--api-only` 只暴露 API，详见 `docs/DEPLOY.md`。
+- 源码里不允许出现 `src="/..."` / `href="/..."` / `"/api/..."` 这类域名根绝对路径，`selfcheck.sh` 会阻断这类回归；所有请求统一走 `url()`。
 
 ## 已知限制 / 下一版本计划
 

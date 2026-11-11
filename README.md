@@ -54,11 +54,22 @@ python3 cardgen.py                                      # 交互式问答
 | --- | --- | --- |
 | 无（默认） | 只用 CLI 出图 | 什么都不做 |
 | 本地网页后台 | 要 GUI、实时预览、可视化改主题 | `python3 server.py` → `http://127.0.0.1:8777` |
-| 远程服务器 | 团队共享、给 agent 稳定端点 | 自行部署后设 `DAILY_CARD_URL` |
+| 远程服务器 | 团队共享、给 agent 稳定端点 | nginx 子路径反代 + `server.py --api-only`，设 `DAILY_CARD_URL` |
 
 后台是 Python 标准库 `ThreadingHTTPServer` + 单页前端，零新增依赖。三个面板：卡片设计（实时预览 / 下载 / 保存）、主题配置（三栏，含**未保存草案的实时效果预览**、配色语义图、WCAG 可读性诊断）、全局设置。macOS 可双击 `start-server.command`。
 
 > `server.py` **零鉴权**且默认只监听 `127.0.0.1`。公开部署前请看 [部署文档](docs/DEPLOY.md)，由反向代理承担鉴权，不要直接 `--host 0.0.0.0` 暴露。
+
+### 同域名子路径部署
+
+云服务器常见形态是「一个域名挂多个服务，用 `location /daily-card/` 区分」。本项目按此设计：nginx `alias` 直出前端静态资源，`/daily-card/api/` 剥前缀转发给 `--api-only` 的 Python 服务；前端 URL 全部由运行时 `BASE` 派生，同一份文件在 `/` 和任意子路径都能跑。
+
+```bash
+./scripts/publish-web.sh                 # 发布 web/ 到版本目录并切换 current 软链
+./scripts/publish-web.sh --rollback      # 秒回滚，不需要重启 Python
+```
+
+前端静态版本因此可独立于后端发版。完整 nginx 配置、systemd、缓存与鉴权说明见 [docs/DEPLOY.md](docs/DEPLOY.md)。
 
 ## 目录结构
 
@@ -74,7 +85,9 @@ config/
   themes.json            实际生效的主题（私有，不进仓库）
   settings.json          全局设置（私有，不进仓库）
 web/                     后台前端
-scripts/selfcheck.sh     健康自检，CI 入口
+scripts/selfcheck.sh     健康自检，CI 入口（含子路径链路回归）
+scripts/publish-web.sh   前端静态版本发布 / 回滚
+scripts/test_subpath.py  模拟 nginx 子路径部署的回归测试
 docs/DEPLOY.md           服务器部署与 CI/CD 说明
 examples/                6 张 demo 成品图（约 6.7 MB，可删）
 install.sh               幂等安装 / 更新
@@ -94,9 +107,10 @@ install.sh               幂等安装 / 更新
 | --- | --- |
 | 本机 / 云服务器 | `git pull && ./install.sh`（私有配置不受影响） |
 | 本机 skill 注册 | `./install.sh --link-skill` 建符号链接，避免文件副本漂移 |
+| 云服务器前端静态版本 | `./scripts/publish-web.sh`，可独立于后端发版与回滚 |
 | skillhub 等平台 | 打 tag 后重新导入，平台存的是快照，天然有版本滞后 |
 
-服务器部署、反代鉴权、systemd、CI/CD 接入见 [docs/DEPLOY.md](docs/DEPLOY.md)。`scripts/selfcheck.sh` 是统一的 CI 入口（语法、配置、冒烟渲染、私有数据检查）。
+服务器部署、反代鉴权、systemd、CI/CD 接入见 [docs/DEPLOY.md](docs/DEPLOY.md)。`scripts/selfcheck.sh` 是统一的 CI 入口（语法、配置、冒烟渲染、私有数据、前端路径可移植性、子路径部署模拟，共 8 步）。
 
 ## 作为 Skill 使用
 
@@ -109,4 +123,4 @@ install.sh               幂等安装 / 更新
 
 ## 版本与许可
 
-当前版本 `0.4.0`，版本记录见 [CHANGELOG.md](CHANGELOG.md)。采用 [MIT](LICENSE) 许可。
+当前版本 `0.5.0`，版本记录见 [CHANGELOG.md](CHANGELOG.md)。采用 [MIT](LICENSE) 许可。

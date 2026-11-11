@@ -1,5 +1,11 @@
 /* daily-card 网页工作台 —— 原生 JS，无构建、无外部依赖 */
 
+/* 部署前缀属于运行时环境，不属于源码。
+   同一份前端可挂在 / 或 /daily-card/ 等任意子路径；nginx 负责剥掉 API 前缀。
+   需要把 API 指向独立域名时，可在加载本脚本前设置 window.DAILY_CARD_BASE。 */
+const BASE = (window.DAILY_CARD_BASE || new URL(".", document.baseURI).href).replace(/\/+$/, "");
+const url = (p) => BASE + "/" + String(p).replace(/^\/+/, "");
+
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 
@@ -39,7 +45,7 @@ const S = {
 async function api(path, method = "GET", body) {
   const opt = { method, headers: { "Content-Type": "application/json" } };
   if (body !== undefined) opt.body = JSON.stringify(body);
-  const r = await fetch(path, opt);
+  const r = await fetch(url(path), opt);
   const ct = r.headers.get("content-type") || "";
   const data = ct.includes("json") ? await r.json() : await r.text();
   if (!r.ok || (data && data.ok === false)) {
@@ -71,11 +77,16 @@ function esc(s) {
 /* ------------------------------------------------------------ bootstrap */
 
 async function bootstrap() {
-  const d = await api("/api/bootstrap");
+  const d = await api("api/bootstrap");
   S.doc = d.themes_doc;
   S.settings = d.settings;
   S.registry = d.registry;
   S.platforms = d.platforms;
+  if (d.mode === "api-only") {
+    const b = $("#btn-reveal");
+    b.disabled = true;
+    b.title = "远程模式不提供打开本机文件夹";
+  }
   $("#config-path").textContent = "配置 " + d.config_dir + "  ·  输出 " + d.output_dir;
 
   fillPlatformSelects();
@@ -196,8 +207,10 @@ function buildStickerGrid(selected, themeId) {
   let html = "";
   const renderItem = (s) => {
     const on = S.pendingStickers.includes(s.id) ? "on" : "";
+    const icon = url("api/sticker?id=" + encodeURIComponent(s.id) +
+                     "&theme=" + encodeURIComponent(themeId) + "&size=72");
     return `<button type="button" class="sticker-item ${on}" data-id="${esc(s.id)}" title="${esc(s.id)}">
-       <span class="sticker-icon"><img src="/api/sticker?id=${encodeURIComponent(s.id)}&theme=${encodeURIComponent(themeId)}&size=72" alt=""></span>
+       <span class="sticker-icon"><img src="${icon}" alt=""></span>
        <span>${esc(s.name)}</span></button>`;
   };
   groups.forEach((g) => {
@@ -275,7 +288,7 @@ function commitEditor() {
 async function saveConfig() {
   commitEditor();
   try {
-    const r = await api("/api/config/themes", "POST", { themes_doc: S.doc });
+    const r = await api("api/config/themes", "POST", { themes_doc: S.doc });
     toast(r.message || "配置已保存");
     fillThemeSelects();
     renderThemeList();
@@ -331,7 +344,7 @@ async function renderThemePreview() {
   state.textContent = "绘制中";
   $("#cfg-loading").hidden = false;
   try {
-    const r = await api("/api/theme-preview", "POST", payload);
+    const r = await api("api/theme-preview", "POST", payload);
     if (myId !== S.pvReqId) return;         // 丢弃过期响应
     const card = $("#cfg-card");
     card.src = r.card;
@@ -433,7 +446,7 @@ async function renderPreview(save = false) {
   S.busy = true;
   $("#preview-loading").hidden = false;
   try {
-    const r = await api(save ? "/api/save" : "/api/render", "POST", p);
+    const r = await api(save ? "api/save" : "api/render", "POST", p);
     if (myId !== S.reqId) return;               // 丢弃过期响应
     S.lastPng = r.png;
     const img = $("#preview-img");
@@ -481,7 +494,7 @@ function bindEvents() {
     document.body.appendChild(a); a.click(); a.remove();
   });
   $("#btn-reveal").addEventListener("click", async () => {
-    try { await api("/api/reveal", "POST", {}); toast("已打开输出文件夹"); }
+    try { await api("api/reveal", "POST", {}); toast("已打开输出文件夹"); }
     catch (e) { toast(e.message, true); }
   });
 
@@ -493,7 +506,7 @@ function bindEvents() {
     reader.onload = async () => {
       $("#bg-name").textContent = "正在分析配色…";
       try {
-        const r = await api("/api/schemes", "POST", { image: reader.result });
+        const r = await api("api/schemes", "POST", { image: reader.result });
         S.imageId = r.image_id;
         S.schemes = r.schemes;
         S.scheme = 0;
@@ -567,7 +580,7 @@ function bindEvents() {
   $("#btn-reset").addEventListener("click", async () => {
     if (!confirm("恢复出厂主题会覆盖当前 themes.json，确定继续？")) return;
     try {
-      const r = await api("/api/config/reset", "POST", {});
+      const r = await api("api/config/reset", "POST", {});
       S.doc = r.themes_doc;
       S.current = Object.keys(S.doc.themes)[0];
       selectTheme(S.current, false);
@@ -598,7 +611,7 @@ function bindEvents() {
       auto_pick_theme: $("#s-auto-theme").checked,
     };
     try {
-      const r = await api("/api/config/settings", "POST", { settings: patch });
+      const r = await api("api/config/settings", "POST", { settings: patch });
       S.settings = Object.assign(S.settings, patch);
       $("#settings-hint").textContent = "已保存 " + new Date().toLocaleTimeString();
       toast(r.message || "设置已保存");

@@ -3,10 +3,12 @@
 """
 daily-card 本地网页后台
 
-  python3 server.py              # 默认 http://127.0.0.1:8777
+  python3 server.py                       # 独立模式：API + 静态页面
   python3 server.py --port 9000 --open
+  python3 server.py --api-only            # 云部署：只提供 API，静态由 nginx 托管
 
-只监听本机回环地址，不对外暴露；所有配置读写都落在项目目录内。
+默认只监听本机回环地址，不对外暴露；所有配置读写都落在项目目录内。
+部署前缀由 nginx 剥离，后端路由始终是 /api/*，详见 docs/DEPLOY.md。
 API 也可以被 agent / curl 直接调用，详见 SKILL.md。
 """
 
@@ -34,6 +36,14 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 WEB_DIR = os.path.join(BASE, "web")
 MAX_BODY = 24 * 1024 * 1024
 ID_RE = re.compile(r"^[A-Za-z0-9_\-]+$")
+
+def _version():
+    try:
+        with open(os.path.join(BASE, "VERSION"), encoding="utf-8") as f:
+            return f.read().strip()
+    except OSError:
+        return "unknown"
+
 
 MIME = {
     ".html": "text/html; charset=utf-8",
@@ -167,6 +177,7 @@ def _sticker_png(sticker_id, theme_id, size=88):
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "DailyCard/1.0"
+    api_only = False                 # main() 依据 --api-only 设置
 
     def log_message(self, fmt, *args):
         if os.environ.get("DAILY_CARD_VERBOSE"):
@@ -212,9 +223,18 @@ class Handler(BaseHTTPRequestHandler):
         path = parsed.path
         q = parse_qs(parsed.query)
         try:
+            if path == "/api/health":
+                return self._json({
+                    "ok": True,
+                    "version": _version(),
+                    "mode": "api-only" if self.api_only else "standalone",
+                    "serves_static": not self.api_only,
+                    "config_dir": cfg.config_dir(),
+                })
             if path == "/api/bootstrap":
                 return self._json({
                     "ok": True,
+                    "mode": "api-only" if self.api_only else "standalone",
                     "themes_doc": cfg.load_doc(),
                     "settings": cfg.load_settings(),
                     "registry": cfg.load_registry(),
@@ -239,7 +259,9 @@ class Handler(BaseHTTPRequestHandler):
             if path.startswith("/api/"):
                 return self._error("未知接口：%s" % path, 404)
 
-            # 静态文件
+            # 静态文件（--api-only 时由 nginx alias 提供）
+            if self.api_only:
+                return self._error("静态资源由反向代理提供（--api-only 模式）", 404)
             rel = "index.html" if path in ("/", "") else path.lstrip("/")
             if ".." in rel or rel.startswith("/"):
                 return self._error("非法路径", 403)
@@ -292,6 +314,8 @@ class Handler(BaseHTTPRequestHandler):
                 # 预览尚未保存的主题草案：只读内存，不触碰 config/themes.json
                 return self._json(cardpreview.build_preview(data))
             if path == "/api/reveal":
+                if self.api_only:
+                    return self._error("远程模式不支持打开本机文件夹", 403)
                 target = data.get("path") or cfg.output_dir()
                 if not os.path.exists(target):
                     os.makedirs(target, exist_ok=True)
@@ -313,13 +337,19 @@ def main():
     ap.add_argument("--port", type=int, default=8777)
     ap.add_argument("--host", default="127.0.0.1")
     ap.add_argument("--open", action="store_true", help="启动后自动打开浏览器")
+    ap.add_argument("--api-only", action="store_true",
+                    help="只提供 /api/*，静态页面由 nginx 托管；同时禁用 /api/reveal")
     args = ap.parse_args()
 
     cfg.ensure_config()
+    Handler.api_only = args.api_only
     url = "http://%s:%d" % (args.host, args.port)
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     print("  🐾 daily-card 后台已启动")
     print("     地址：%s" % url)
+    print("     模式：%s" % ("纯 API / 静态由 nginx 托管" if args.api_only
+                            else "独立 / 同时托管静态页面"))
+    print("     版本：%s" % _version())
     print("     配置：%s" % cfg.config_dir())
     print("     输出：%s" % cfg.output_dir())
     print("     Ctrl+C 停止\n")

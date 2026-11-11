@@ -2,6 +2,18 @@
 
 公开仓库为**单个干净初始提交**（历史重开），因此版本演进以本文件为准。
 
+## 0.5.0 · 2026-11-11 · 同域名子路径部署与前后端解耦
+
+面向「nginx 统一入口 + 同域名多服务 + `location /daily-card/`」的部署形态，改动集中在前端 URL 派生与部署层，**渲染逻辑与既有 API 路径不变**。
+
+- 前端新增运行时 `BASE`：由 `document.baseURI` 推导，可用 `window.DAILY_CARD_BASE` 覆盖；`app.js` 的 10 处 API 路径与贴纸图标、以及 `index.html` 的静态资源全部改为相对派生，源码不再出现域名根绝对路径
+- `server.py` 新增 `--api-only`（云部署只提供 API、不托管静态、禁用 `/api/reveal`）与 `GET /api/health`（回显版本/模式/配置目录）；`bootstrap` 增加 `mode` 字段；独立模式仍托管 `web/`，本地直连不受影响
+- 新增 `scripts/publish-web.sh`：前端静态资源按版本目录发布、`current` 符号链接原子切换、`--rollback` 秒回滚、旧版本清理，附带 `manifest.json`
+- 新增 `scripts/test_subpath.py`：进程内模拟 nginx 剥前缀 + 静态分离，回归 10 项链路断言
+- `scripts/selfcheck.sh` 从 6 步扩到 8 步：新增硬编码路径检查、BASE 推导 4 组单测、子路径部署模拟
+- `docs/DEPLOY.md` 重写：子路径部署为默认方案、新增「架构约定」章节、原独占域名配置降为附录；`SKILL.md` 同步补充运行模式与发布命令
+- 前端可独立发版与回滚，不依赖 Python 服务重启
+
 ## 0.4.0 · 2026-11-11 · 公开发布准备
 
 面向「仓库公开 + 多路并行 + 云服务器 + skill 收录」的打包层改造，**未改动任何渲染逻辑与后台代码**。
