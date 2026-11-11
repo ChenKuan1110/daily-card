@@ -1,0 +1,462 @@
+{
+  "version": 1,
+  "default_theme": "quote",
+  "themes": {
+    "study": {
+      "label": "DAILY NOTE · 每日一句",
+      "keywords": [
+        "学习",
+        "单词",
+        "英语",
+        "背书",
+        "读书",
+        "阅读",
+        "看书",
+        "打卡",
+        "笔记",
+        "考试",
+        "考研",
+        "自习",
+        "课程",
+        "知识",
+        "练习",
+        "坚持",
+        "复习",
+        "study",
+        "english",
+        "vocabulary",
+        "learn",
+        "book",
+        "day "
+      ],
+      "colors": {
+        "bg1": "#F7E9C8",
+        "bg2": "#EED6A4",
+        "card": "#FFFDF5",
+        "ink": "#2E3A2C",
+        "sub": "#7A7C68",
+        "accent": "#E0703C",
+        "accent2": "#5D8B6A",
+        "soft": "#F1D9A8",
+        "pill": "#2E3A2C",
+        "pill_text": "#FFFDF5"
+      },
+      "motif": "dots",
+      "stickers": [
+        "book",
+        "pencil",
+        "coffee",
+        "bulb",
+        "stamp",
+        "sparkle"
+      ],
+      "dark": false
+    },
+    "morning": {
+      "label": "GOOD MORNING · 早安",
+      "keywords": [
+        "早安",
+        "早上",
+        "晨",
+        "日出",
+        "清晨",
+        "醒来",
+        "早餐",
+        "朝阳",
+        "新的一天",
+        "morning",
+        "sunrise",
+        "wake",
+        "早餐"
+      ],
+      "colors": {
+        "bg1": "#FDE5CE",
+        "bg2": "#F9C9A6",
+        "card": "#FFFBF3",
+        "ink": "#57382C",
+        "sub": "#8A7065",
+        "accent": "#EE8242",
+        "accent2": "#E9B44C",
+        "soft": "#F8D7B5",
+        "pill": "#EE8242",
+        "pill_text": "#FFFBF3"
+      },
+      "motif": "rays",
+      "stickers": [
+        "sun",
+        "cloud",
+        "coffee",
+        "flower",
+        "bird",
+        "sparkle"
+      ],
+      "dark": false
+    },
+    "night": {
+      "label": "GOOD NIGHT · 晚安",
+      "keywords": [
+        "晚安",
+        "夜",
+        "睡前",
+        "月亮",
+        "星星",
+        "梦",
+        "失眠",
+        "深夜",
+        "宁静",
+        "night",
+        "sleep",
+        "moon",
+        "dream"
+      ],
+      "colors": {
+        "bg1": "#2B3358",
+        "bg2": "#171C36",
+        "card": "#333C63",
+        "ink": "#F6F1E6",
+        "sub": "#AEB4CE",
+        "accent": "#F2C66D",
+        "accent2": "#8C9BE0",
+        "soft": "#46507C",
+        "pill": "#F2C66D",
+        "pill_text": "#2B3358"
+      },
+      "motif": "stars",
+      "stickers": [
+        "moon",
+        "star",
+        "sparkle",
+        "cloud",
+        "cat",
+        "heart"
+      ],
+      "dark": true
+    },
+    "coffee": {
+      "label": "SLOW DOWN · 慢一点",
+      "keywords": [
+        "咖啡",
+        "拿铁",
+        "下午茶",
+        "茶",
+        "休息",
+        "慢",
+        "松弛",
+        "发呆",
+        "甜点",
+        "coffee",
+        "latte",
+        "tea",
+        "break"
+      ],
+      "colors": {
+        "bg1": "#F0E0CC",
+        "bg2": "#DFC4A4",
+        "card": "#FFFAF1",
+        "ink": "#4A3628",
+        "sub": "#8A7562",
+        "accent": "#A9683F",
+        "accent2": "#C99A5B",
+        "soft": "#E7CDAE",
+        "pill": "#4A3628",
+        "pill_text": "#FFFAF1"
+      },
+      "motif": "circles",
+      "stickers": [
+        "coffee",
+        "book",
+        "leaf",
+        "clock",
+        "heart"
+      ],
+      "dark": false
+    },
+    "sport": {
+      "label": "KEEP GOING · 动起来",
+      "keywords": [
+        "运动",
+        "健身",
+        "跑步",
+        "打卡",
+        "训练",
+        "汗水",
+        "马拉松",
+        "瑜伽",
+        "骑行",
+        "坚持",
+        "sport",
+        "run",
+        "gym",
+        "fitness",
+        "workout"
+      ],
+      "colors": {
+        "bg1": "#FFE7DC",
+        "bg2": "#FFC9B2",
+        "card": "#FFFBF7",
+        "ink": "#3A2E2A",
+        "sub": "#826A60",
+        "accent": "#E85536",
+        "accent2": "#F2A33C",
+        "soft": "#FFD6BF",
+        "pill": "#E85536",
+        "pill_text": "#FFFBF7"
+      },
+      "motif": "waves",
+      "stickers": [
+        "dumbbell",
+        "bolt",
+        "clock",
+        "check",
+        "star"
+      ],
+      "dark": false
+    },
+    "nature": {
+      "label": "GO OUTSIDE · 出发",
+      "keywords": [
+        "山",
+        "海",
+        "旅行",
+        "自然",
+        "春天",
+        "花",
+        "树",
+        "森林",
+        "露营",
+        "出走",
+        "风景",
+        "周末",
+        "远方",
+        "草原",
+        "travel",
+        "nature",
+        "spring",
+        "sea"
+      ],
+      "colors": {
+        "bg1": "#E0EEE0",
+        "bg2": "#BFDCC6",
+        "card": "#FBFFF9",
+        "ink": "#274438",
+        "sub": "#6C8577",
+        "accent": "#3F8F6D",
+        "accent2": "#E0A24A",
+        "soft": "#CDE7D3",
+        "pill": "#274438",
+        "pill_text": "#FBFFF9"
+      },
+      "motif": "waves",
+      "stickers": [
+        "mountain",
+        "sun",
+        "cloud",
+        "leaf",
+        "wave",
+        "plane"
+      ],
+      "dark": false
+    },
+    "mood": {
+      "label": "LITTLE JOY · 今日心情",
+      "keywords": [
+        "喜欢",
+        "爱",
+        "治愈",
+        "温柔",
+        "开心",
+        "心情",
+        "快乐",
+        "想念",
+        "浪漫",
+        "温暖",
+        "小确幸",
+        "love",
+        "heart",
+        "happy",
+        "joy"
+      ],
+      "colors": {
+        "bg1": "#FDE6E6",
+        "bg2": "#F8CBD0",
+        "card": "#FFFAFA",
+        "ink": "#5A3542",
+        "sub": "#96717C",
+        "accent": "#E46A82",
+        "accent2": "#F2AC72",
+        "soft": "#FAD9DF",
+        "pill": "#E46A82",
+        "pill_text": "#FFFAFA"
+      },
+      "motif": "circles",
+      "stickers": [
+        "heart",
+        "flower",
+        "cat",
+        "sparkle",
+        "balloon",
+        "cloud"
+      ],
+      "dark": false
+    },
+    "work": {
+      "label": "FOCUS · 专注时刻",
+      "keywords": [
+        "工作",
+        "计划",
+        "目标",
+        "效率",
+        "专注",
+        "会议",
+        "项目",
+        "复盘",
+        "周一",
+        "清单",
+        "todo",
+        "work",
+        "plan",
+        "focus",
+        "goal"
+      ],
+      "colors": {
+        "bg1": "#E4EDF8",
+        "bg2": "#C7DBF0",
+        "card": "#FCFDFF",
+        "ink": "#25374D",
+        "sub": "#6E8197",
+        "accent": "#3971B8",
+        "accent2": "#63A6C8",
+        "soft": "#D5E5F4",
+        "pill": "#25374D",
+        "pill_text": "#FCFDFF"
+      },
+      "motif": "grid",
+      "stickers": [
+        "calendar",
+        "check",
+        "clock",
+        "bulb",
+        "pencil",
+        "note"
+      ],
+      "dark": false
+    },
+    "tech": {
+      "label": "NEW IDEA · 灵感",
+      "keywords": [
+        "AI",
+        "代码",
+        "科技",
+        "编程",
+        "产品",
+        "数据",
+        "设计",
+        "灵感",
+        "未来",
+        "数字",
+        "ai",
+        "code",
+        "tech",
+        "data",
+        "design",
+        "idea"
+      ],
+      "colors": {
+        "bg1": "#E5E7F7",
+        "bg2": "#C9CDF0",
+        "card": "#FAFAFF",
+        "ink": "#2E3157",
+        "sub": "#71759B",
+        "accent": "#5B58C9",
+        "accent2": "#4FA9C0",
+        "soft": "#DADCF5",
+        "pill": "#2E3157",
+        "pill_text": "#FAFAFF"
+      },
+      "motif": "grid",
+      "stickers": [
+        "bolt",
+        "bulb",
+        "grid",
+        "camera",
+        "star",
+        "sparkle"
+      ],
+      "dark": false
+    },
+    "festival": {
+      "label": "CELEBRATE · 特别的一天",
+      "keywords": [
+        "生日",
+        "节日",
+        "快乐",
+        "庆祝",
+        "新年",
+        "圣诞",
+        "纪念日",
+        "恭喜",
+        "礼物",
+        "birthday",
+        "party",
+        "festival",
+        "happy"
+      ],
+      "colors": {
+        "bg1": "#FCE7DC",
+        "bg2": "#F6C9B4",
+        "card": "#FFFCF7",
+        "ink": "#5B2C28",
+        "sub": "#926B61",
+        "accent": "#D9483F",
+        "accent2": "#E5A640",
+        "soft": "#F9DCC8",
+        "pill": "#D9483F",
+        "pill_text": "#FFFCF7"
+      },
+      "motif": "dots",
+      "stickers": [
+        "balloon",
+        "star",
+        "flower",
+        "sparkle",
+        "heart"
+      ],
+      "dark": false
+    },
+    "quote": {
+      "label": "DAILY QUOTE · 每日一句",
+      "keywords": [
+        "一句",
+        "语录",
+        "句子",
+        "摘抄",
+        "思考",
+        "人生",
+        "感悟",
+        "quote"
+      ],
+      "colors": {
+        "bg1": "#F2EDE3",
+        "bg2": "#E3DACB",
+        "card": "#FFFCF6",
+        "ink": "#35342E",
+        "sub": "#7D7A70",
+        "accent": "#B08050",
+        "accent2": "#7E9A88",
+        "soft": "#E8DFCF",
+        "pill": "#35342E",
+        "pill_text": "#FFFCF6"
+      },
+      "motif": "circles",
+      "stickers": [
+        "quote",
+        "leaf",
+        "sun",
+        "star",
+        "sparkle",
+        "book"
+      ],
+      "dark": false
+    }
+  }
+}

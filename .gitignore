@@ -1,0 +1,26 @@
+# 运行时产物
+output/
+uploads/
+__pycache__/
+*.py[cod]
+.DS_Store
+*.log
+
+# 使用者私有数据（绝不进公开仓库）
+config/themes.json
+config/settings.json
+config/*.local.json
+.env
+
+# 本机 / 部署环境
+.venv/
+venv/
+.daily-card-private-archive/
+
+# 本地临时文件
+.tmp/
+*.tmp
+
+# 编辑器本地配置（不进版本管理）
+.vscode/
+.idea/

@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "groups": ["学习办公", "自然天气", "生活美食", "心情运动"],
+  "motifs": [
+    { "id": "circles", "name": "柔和圆形", "desc": "大面积柔光圆叠加，温柔治愈，适合语录与心情" },
+    { "id": "dots", "name": "点点阵列", "desc": "规则小圆点铺底，秩序感强，适合学习打卡与清单" },
+    { "id": "grid", "name": "细线网格", "desc": "细网格配角落光晕，理性克制，适合工作与笔记" },
+    { "id": "rays", "name": "放射光芒", "desc": "右上角放射线，有能量感，适合早安与开局" },
+    { "id": "waves", "name": "层叠波浪", "desc": "底部波浪层叠，舒缓流动，适合旅行与自然" },
+    { "id": "stars", "name": "点点星空", "desc": "随机星点散布，夜晚氛围，适合晚安与梦幻" }
+  ],
+  "stickers": [
+    { "id": "book", "name": "打开的书", "group": "学习办公" },
+    { "id": "pencil", "name": "铅笔", "group": "学习办公" },
+    { "id": "calendar", "name": "日历", "group": "学习办公" },
+    { "id": "check", "name": "勾选框", "group": "学习办公" },
+    { "id": "clock", "name": "时钟", "group": "学习办公" },
+    { "id": "note", "name": "音符", "group": "学习办公" },
+    { "id": "stamp", "name": "打卡印章", "group": "学习办公" },
+    { "id": "quote", "name": "引号", "group": "学习办公" },
+    { "id": "grid", "name": "方格", "group": "学习办公" },
+    { "id": "bulb", "name": "灯泡", "group": "学习办公" },
+    { "id": "sun", "name": "太阳", "group": "自然天气" },
+    { "id": "cloud", "name": "云朵", "group": "自然天气" },
+    { "id": "moon", "name": "月亮", "group": "自然天气" },
+    { "id": "star", "name": "五角星", "group": "自然天气" },
+    { "id": "sparkle", "name": "闪光", "group": "自然天气" },
+    { "id": "leaf", "name": "叶子", "group": "自然天气" },
+    { "id": "flower", "name": "小花", "group": "自然天气" },
+    { "id": "mountain", "name": "小山", "group": "自然天气" },
+    { "id": "wave", "name": "波浪", "group": "自然天气" },
+    { "id": "coffee", "name": "咖啡杯", "group": "生活美食" },
+    { "id": "camera", "name": "相机", "group": "生活美食" },
+    { "id": "plane", "name": "纸飞机", "group": "生活美食" },
+    { "id": "balloon", "name": "气球", "group": "生活美食" },
+    { "id": "bird", "name": "小鸟", "group": "生活美食" },
+    { "id": "heart", "name": "爱心", "group": "心情运动" },
+    { "id": "cat", "name": "小猫", "group": "心情运动" },
+    { "id": "bolt", "name": "闪电", "group": "心情运动" },
+    { "id": "dumbbell", "name": "哑铃", "group": "心情运动" }
+  ]
+}

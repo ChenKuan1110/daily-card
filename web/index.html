@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>每日一句 · 卡片工作台</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">🐾</span>
+      <div>
+        <h1>每日一句 · 卡片工作台</h1>
+        <p class="sub" id="config-path">配置加载中…</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span class="pill-status" id="status-dot">本地运行</span>
+      <button class="btn ghost" id="btn-reveal">打开输出文件夹</button>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab active" data-tab="design">卡片设计</button>
+    <button class="tab" data-tab="config">主题 / 配置管理</button>
+    <button class="tab" data-tab="settings">全局设置</button>
+  </nav>
+
+  <main>
+    <!-- ===================== 设计 ===================== -->
+    <section class="tab-panel active" id="panel-design">
+      <div class="design-layout">
+        <aside class="card form-panel">
+          <div class="section-title">文案</div>
+          <label class="field">
+            <span>标题 <em>*</em></span>
+            <input id="f-title" type="text" value="今天也要好好生活" placeholder="一句话，做主标题">
+          </label>
+          <label class="field">
+            <span>副标题</span>
+            <textarea id="f-subtitle" rows="2" placeholder="补充说明、出处或心情">把普通的日子，过得响亮一点</textarea>
+          </label>
+          <div class="row-2">
+            <label class="field">
+              <span>平台尺寸</span>
+              <select id="f-platform"></select>
+            </label>
+            <label class="field">
+              <span>主题</span>
+              <select id="f-theme"></select>
+            </label>
+          </div>
+          <div class="row-2">
+            <label class="field">
+              <span>日期</span>
+              <input id="f-date" type="date">
+            </label>
+            <label class="field">
+              <span>构图种子</span>
+              <input id="f-seed" type="number" placeholder="留空=默认">
+            </label>
+          </div>
+          <label class="field">
+            <span>落款</span>
+            <input id="f-brand" type="text" placeholder="例如 Claw · 每日一句">
+          </label>
+
+          <div class="section-title with-gap">背景与配色</div>
+          <div class="upload-row">
+            <label class="btn outline tiny" for="f-bg">选择背景图</label>
+            <input id="f-bg" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+            <button class="btn ghost tiny" id="bg-clear">清除</button>
+            <span class="hint" id="bg-name">未使用背景图</span>
+          </div>
+          <div class="bg-preview-wrap">
+            <img id="bg-thumb" alt="背景缩略图" hidden>
+            <div id="scheme-list" class="scheme-list"></div>
+          </div>
+          <div class="row-2">
+            <label class="field">
+              <span>自定义主色</span>
+              <div class="color-inline">
+                <input id="f-base-color" type="color" value="#3F8F6D">
+                <button class="btn ghost tiny" id="btn-custom-color">用这个颜色</button>
+              </div>
+            </label>
+            <label class="field">
+              <span>卡片明暗</span>
+              <select id="f-dark">
+                <option value="">跟随图片自动判断</option>
+                <option value="false">浅色卡片</option>
+                <option value="true">深色卡片</option>
+              </select>
+            </label>
+          </div>
+          <p class="tip">上传背景图后会自动给出多套配色方案，点一张色卡即可套用；贴纸种类仍由标题主题决定。</p>
+
+          <div class="action-row">
+            <button class="btn primary" id="btn-render">生成预览</button>
+            <button class="btn outline" id="btn-save">保存到 output</button>
+            <button class="btn ghost" id="btn-download">下载 PNG</button>
+          </div>
+          <label class="check"><input id="f-auto" type="checkbox" checked> 修改后自动刷新预览</label>
+        </aside>
+
+        <div class="card preview-panel">
+          <div class="preview-head">
+            <span id="preview-meta">等待生成…</span>
+            <span class="badge" id="preview-badge">PNG</span>
+          </div>
+          <div class="preview-stage" id="preview-stage">
+            <div class="preview-loading" id="preview-loading" hidden>正在绘制…</div>
+            <img id="preview-img" alt="卡片预览">
+          </div>
+          <p class="tip center">预览图为实际输出像素，可直接右键保存；点「保存到 output」写入项目目录。</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== 主题配置 ===================== -->
+    <section class="tab-panel" id="panel-config">
+      <div class="config-layout">
+        <aside class="card theme-list-panel">
+          <div class="section-title">主题列表</div>
+          <div id="theme-list" class="theme-list"></div>
+          <div class="stack">
+            <button class="btn outline tiny" id="btn-theme-add">＋ 新增主题</button>
+            <button class="btn ghost tiny" id="btn-theme-del">删除当前主题</button>
+          </div>
+          <div class="divider"></div>
+          <div class="stack">
+            <button class="btn primary tiny" id="btn-save-config">保存配置</button>
+            <button class="btn ghost tiny" id="btn-reset">恢复出厂主题</button>
+            <button class="btn ghost tiny" id="btn-export">导出 JSON</button>
+          </div>
+          <p class="tip">保存后写入 <code>config/themes.json</code>，脚本与预览立即生效；<code>themes.default.json</code> 保持出厂备份。</p>
+        </aside>
+
+        <div class="card theme-editor">
+          <div class="section-title">编辑主题 <span class="muted" id="editing-id"></span></div>
+          <div class="row-2">
+            <label class="field">
+              <span>主题 ID</span>
+              <input id="cfg-id" type="text" placeholder="英文 ID，如 mytheme">
+            </label>
+            <label class="field">
+              <span>卡片标签</span>
+              <input id="cfg-label" type="text" placeholder="DAILY NOTE · 每日一句">
+            </label>
+          </div>
+          <div class="row-2">
+            <label class="field">
+              <span>背景纹样</span>
+              <select id="cfg-motif"></select>
+            </label>
+            <label class="field">
+              <span>深色主题</span>
+              <select id="cfg-dark"><option value="false">否 · 浅色卡片</option><option value="true">是 · 深色卡片</option></select>
+            </label>
+          </div>
+          <div class="semantic-hints">
+            <p id="motif-hint"></p>
+            <p id="dark-hint"></p>
+          </div>
+          <label class="field">
+            <span>触发关键词 <em>（逗号 / 换行分隔，自动识别主题时匹配）</em></span>
+            <textarea id="cfg-keywords" rows="2" placeholder="学习, 单词, 打卡, study"></textarea>
+          </label>
+
+          <div class="section-title with-gap">成套配色 <span class="muted">贴纸与背景共用这组颜色，改动即刻反映在右侧</span></div>
+          <div id="color-grid" class="color-grid"></div>
+
+          <div class="section-title with-gap">贴纸元素 <span class="muted" id="sticker-count"></span></div>
+          <p class="tiny-tip">下方图标与右侧贴纸条会跟随当前（未保存的）配色一起变化。</p>
+          <div id="sticker-grid" class="sticker-grid"></div>
+        </div>
+
+        <!-- 主题草案实时预览：右侧第三栏 -->
+        <aside class="card theme-preview-panel">
+          <div class="cfg-pv-head">
+            <div>
+              <div class="section-title" style="margin-bottom:2px">实时效果预览</div>
+              <span class="muted">未保存的修改也会立刻显示</span>
+            </div>
+            <span class="badge warn-badge" id="cfg-pv-state">草稿</span>
+          </div>
+
+          <div class="cfg-pv-tools">
+            <input id="cfg-pv-title" type="text" value="把普通的日子，过得响亮一点" placeholder="预览用标题">
+            <input id="cfg-pv-subtitle" type="text" value="这句是副标题，用来预览文字层级" placeholder="预览用副标题">
+            <div class="cfg-pv-row">
+              <select id="cfg-pv-platform" title="预览尺寸"></select>
+              <button class="btn outline tiny" id="btn-cfg-refresh">刷新</button>
+              <button class="btn ghost tiny" id="btn-cfg-download">下载</button>
+            </div>
+            <label class="check"><input id="cfg-pv-auto" type="checkbox" checked> 编辑后自动刷新</label>
+          </div>
+
+          <div class="cfg-stage" id="cfg-stage">
+            <div class="cfg-loading" id="cfg-loading">正在绘制…</div>
+            <img id="cfg-card" alt="主题草案卡片预览">
+          </div>
+          <p class="cfg-meta" id="cfg-meta">等待预览…</p>
+
+          <div class="cfg-block-title">配色语义图 <span>纹样 / 深浅 / 各颜色用在哪</span></div>
+          <img id="cfg-legend" class="cfg-wide-img" alt="配色语义示意图">
+
+          <div class="cfg-block-title">贴纸取色 <span>当前配色下的样子</span></div>
+          <img id="cfg-stickers" class="cfg-wide-img" alt="贴纸配色示意">
+
+          <div class="cfg-block-title">可读性检查 <span id="cfg-contrast"></span></div>
+          <div id="cfg-diag" class="diag-list"></div>
+          <p class="tip">预览只在内存中渲染，不会写入 <code>config/themes.json</code>；调满意后点左侧「保存配置」。</p>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ===================== 全局设置 ===================== -->
+    <section class="tab-panel" id="panel-settings">
+      <div class="settings-layout">
+      <div class="card settings-panel">
+        <div class="section-title">默认值与渲染参数</div>
+        <div class="row-2">
+          <label class="field"><span>默认平台</span><select id="s-platform"></select></label>
+          <label class="field"><span>默认落款</span><input id="s-brand" type="text"></label>
+        </div>
+        <div class="row-2">
+          <label class="field"><span>超采样倍数</span><input id="s-supersample" type="number" min="1" max="4"></label>
+          <label class="field"><span>纸张颗粒强度</span><input id="s-grain" type="number" min="0" max="30"></label>
+        </div>
+        <div class="row-2">
+          <label class="field"><span>输出目录（相对项目根）</span><input id="s-output" type="text"></label>
+          <label class="field"><span>默认背景配色方案序号</span><input id="s-scheme" type="number" min="0" max="9"></label>
+        </div>
+        <label class="check"><input id="s-auto-theme" type="checkbox"> 命令行默认自动识别主题</label>
+        <div class="action-row left">
+          <button class="btn primary" id="btn-save-settings">保存设置</button>
+          <span class="hint" id="settings-hint"></span>
+        </div>
+      </div>
+      <div class="card api-panel">
+        <div class="section-title">给 agent 用的接口</div>
+        <p class="tip">后台所有能力都有对应 JSON 接口，完整说明见项目内 <code>SKILL.md</code>。</p>
+        <pre class="code">curl -s http://127.0.0.1:8777/api/render \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"今天也要好好生活","subtitle":"把日子过得响亮一点"}'</pre>
+        <div class="divider"></div>
+        <div class="section-title">常用接口</div>
+        <ul class="api-list">
+          <li><code>GET /api/bootstrap</code> 读取主题 / 贴纸 / 设置 / 平台</li>
+          <li><code>POST /api/render</code> 生成预览，返回 PNG base64</li>
+          <li><code>POST /api/save</code> 生成并写入 output 目录</li>
+          <li><code>POST /api/theme-preview</code> 未保存主题草案 → 卡片 / 语义图 / 诊断</li>
+          <li><code>POST /api/schemes</code> 背景图 → 多套配色方案</li>
+          <li><code>POST /api/config/themes</code> 保存主题配置</li>
+          <li><code>POST /api/config/settings</code> 保存全局设置</li>
+          <li><code>POST /api/config/reset</code> 恢复出厂主题</li>
+          <li><code>GET /api/sticker?id=book</code> 贴纸图标 PNG</li>
+        </ul>
+        <p class="tip">也可以完全绕开后台，直接用 <code>python3 cardgen.py</code> 命令行生成。</p>
+      </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+</div>
+<script src="/app.js"></script>
+</body>
+</html>

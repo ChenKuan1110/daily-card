@@ -1,0 +1,3 @@
+# 运行时唯一第三方依赖：图像处理 / 中文排版 / PNG 输出
+# 其余全部使用 Python 标准库（http.server、json、argparse、colorsys 等）
+Pillow>=9.5,<13
