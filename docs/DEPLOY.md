@@ -9,7 +9,7 @@
 这一节记录设计约束，改动代码或 nginx 配置前请先确认没有破坏它们。
 
 1. **部署前缀是运行时变量，不属于源码。** 前端所有 URL 由 `web/app.js` 顶部唯一的 `BASE` 派生（`new URL(".", document.baseURI)`），源码里不允许出现 `src="/..."`、`href="/..."`、`"/api/..."` 这类域名根绝对路径。`scripts/selfcheck.sh` 第 7 步会阻断这类回归。
-2. **前缀由 nginx 剥离，后端路由恒为 `/api/*`。** 用 `rewrite ^/daily-card/(.*)$ /$1 break;` 配合**不带 URI** 的 `proxy_pass`。因此 CLI、既有 8 组接口、SKILL.md 中的调用示例都不需要为部署形态改动。
+2. **前缀由 nginx 剥离，后端路由恒为 `/api/*`。** 用 `rewrite ^/daily-card/(.*)$ /$1 break;` 配合**不带 URI** 的 `proxy_pass`；等价的简写是 `proxy_pass http://127.0.0.1:8777/api/;`（不带 rewrite）。因此 CLI、既有 8 组接口、SKILL.md 中的调用示例都不需要为部署形态改动。**注意**：`rewrite` 的替换串必须是 `/$1` 而不是 `$1`；漏掉前导斜杠会让后端收到 `api/bootstrap` 这种不合规的 request-target，而后端只认 `/api/bootstrap`，请求会掉进静态文件分支返回 404。
 3. **静态与 API 同源。** 两者都挂在 `/daily-card/` 下，一次 `auth_basic` 即可覆盖；若拆到不同 location 前缀，两个 location 都必须加鉴权，否则接口会裸奔。
 4. **本地开发保持零配置。** `python3 server.py`（独立模式）仍同时托管 `web/` 与 API，`./start-server.command` 与 agent 的本机调用不受云部署影响。云上才用 `--api-only`。
 5. **前端可独立发版。** 静态资源发布到带版本号的目录，用 `current` 符号链接切换，回滚不需要重启 Python 服务。
@@ -17,13 +17,14 @@
 
 ## 1. 前置条件
 
-| 项 | 要求 | 检查 |
-| --- | --- | --- |
-| Python | 3.9+ | `python3 --version` |
-| Pillow | 见 `requirements.txt` | `python3 -c "import PIL; print(PIL.__version__)"` |
-| 中文字体 | Noto Sans CJK（Linux 必需） | `fc-list \| grep -i "noto.*cjk"` |
-| git | 用于后续更新 | `git --version` |
-| nginx | 统一入口，已有其它服务 | `nginx -v` |
+
+| 项       | 要求                        | 检查                                              |
+| ---------- | ----------------------------- | --------------------------------------------------- |
+| Python   | 3.9+                        | `python3 --version`                               |
+| Pillow   | 见 `requirements.txt`       | `python3 -c "import PIL; print(PIL.__version__)"` |
+| 中文字体 | Noto Sans CJK（Linux 必需） | `fc-list | grep -i "noto.*cjk"`                   |
+| git      | 用于后续更新                | `git --version`                                   |
+| nginx    | 统一入口，已有其它服务      | `nginx -v`                                        |
 
 安装中文字体（**最容易漏的一步**，缺了会直接报「找不到中文字体」）：
 
@@ -141,13 +142,14 @@ location ^~ /daily-card/ {
 }
 ```
 
-三个容易踩坑的点：
+四个容易踩坑的点：
 
-- `proxy_pass` **不带 URI**，前缀靠 `rewrite ... break` 剥掉。若写成 `proxy_pass http://127.0.0.1:8777/;`，nginx 会把 location 匹配段替换掉，后端收到的是 `/bootstrap` 而不是 `/api/bootstrap`。
-- `^~` 保证这两个前缀优先于同域名下可能存在的正则 location（例如其它服务的 `\.(js|css)$` 规则）。
+- `rewrite` 的替换串**必须以 `/` 开头**：`/$1` 正确，`$1` 错误。写成 `$1` 时 nginx 会把 `api/bootstrap`（无前导斜杠）当 request-target 发给后端，后端 `/api/bootstrap` 精确路由不命中，落到静态分支，返回 `{"ok":false,"error":"文件不存在：api/bootstrap"}`。这是最容易忽略、也最难从浏览器看出来的一种 404。
+- `proxy_pass` **不带 URI**，前缀靠 `rewrite ... break` 剥掉。若写成 `proxy_pass http://127.0.0.1:8777/;`，nginx 会把 location 匹配段替换掉，后端收到的是 `/bootstrap` 而不是 `/api/bootstrap`。如果不想写 `rewrite`，就改用带完整 URI 的 `proxy_pass http://127.0.0.1:8777/api/;`（location 前缀要写成 `/daily-card/api/`，两个尾斜杠都要有），别把这两种写法混在一起。
+- `^~` 保证这两个前缀优先于同域名下可能存在的正则 location（例如其它服务的 `\.(js|css)$` 规则）。建议 API location 写 `/daily-card/api/`（带尾斜杠），否则 `/daily-card/apixxx` 之类也会被代理。
 - 静态资源用 `no-cache` + ETag 协商，不要设长 `expires`：版本切换后 URL 不变，长缓存会让用户一直拿旧 CSS。要做强缓存，需改成带版本号的 URL 前缀。
 
-两处 `auth_basic` 可用 `include /etc/nginx/snippets/daily-card-auth.conf;` 去重。只在内网/VPN 使用时，可换成 `allow 10.0.0.0/8; deny all;` 之类的 IP 白名单。
+两处 location 都要写 `auth_basic`。只在静态 location 加鉴权等于没加：接口仍可匿名访问，`/api/bootstrap` 会回显配置路径，`POST /api/config/themes` 甚至能改写服务器上的主题。另外 API location 里要有 `client_max_body_size 24m;`，否则 nginx 默认的 1m 会拦下背景图上传（413）。
 
 ```bash
 sudo nginx -t && sudo systemctl reload nginx
@@ -293,18 +295,22 @@ ssh deploy@server 'cd /opt/daily-card && git pull && ./install.sh --no-deps && s
 
 ## 6. 排障
 
-| 现象 | 原因 | 处理 |
-| --- | --- | --- |
-| 页面能打开但样式/脚本全 404 | 前端仍是旧版绝对路径，或 nginx `alias` 少了尾斜杠 | 确认发布的是 v0.5.0+；检查页面源码应为 `href="style.css"`；`alias` 必须以 `/` 结尾 |
-| 接口 404 或打到同域名别的服务 | 前端 URL 未带前缀，或 nginx 没剥前缀 | 确认 `/daily-card` 有 301；用 `curl` 看实际请求路径；核对 `rewrite` + 不带 URI 的 `proxy_pass` |
-| 后端收到 `/bootstrap` 而非 `/api/bootstrap` | `proxy_pass` 带了 URI，被 nginx 二次替换 | 改成 `proxy_pass http://127.0.0.1:8777;` 配 `rewrite ... break` |
-| 切版本后样式仍是旧的 | 静态资源被强缓存 | 用 `Cache-Control: no-cache` 走 ETag；浏览器硬刷新 |
-| `manifest.json` 的 `source_commit` 为 unknown | root 执行时 git 判定仓库属主不可信 | `sudo git config --global --add safe.directory /opt/daily-card` |
-| `找不到中文字体` | Linux 没装 Noto CJK | `apt install fonts-noto-cjk` 后 `fc-cache -fv` |
-| 中文显示成方块 | 命中的字体不含中文字形 | 用 `--font` / `--font-bold` 指定 `.ttf/.ttc` |
-| 上传大图失败 | 超过 24MB | 压缩图片；或同步调大 nginx `client_max_body_size` 与后端 `MAX_BODY` |
-| 改了主题没生效 | 改的是出厂模板而非 `themes.json` | 确认 `DAILY_CARD_CONFIG` 指向的目录 |
-| `/api/reveal` 返回 403 | `--api-only` 下刻意禁用 | 正常行为，前端已禁用该按钮；需要本地文件夹请走独立模式 |
+
+| 现象                                          | 原因                                              | 处理                                                                                           |
+| ----------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 页面能打开但样式/脚本全 404                   | 前端仍是旧版绝对路径，或 nginx `alias` 少了尾斜杠 | 确认发布的是 v0.5.0+；检查页面源码应为 `href="style.css"`；`alias` 必须以 `/` 结尾             |
+| 接口 404 或打到同域名别的服务                 | 前端 URL 未带前缀，或 nginx 没剥前缀              | 确认 `/daily-card` 有 301；用 `curl` 看实际请求路径；核对 `rewrite` + 不带 URI 的 `proxy_pass` |
+| 接口返回 `文件不存在：api/xxx`、`未知接口：api/xxx` | `rewrite` 替换串写成 `$1`，后端收到的路径没有前导 `/` | 改成 `rewrite ^/daily-card/(.*)$ /$1 break;`；`proxy_pass` 去掉尾部 `/`。用 `POST /daily-card/api/health`，错误文案会直接回显后端看到的路径，可据此判断 |
+| 后端收到 `/bootstrap` 而非 `/api/bootstrap`   | `proxy_pass` 带了 URI，被 nginx 二次替换          | 改成 `proxy_pass http://127.0.0.1:8777;` 配 `rewrite ... break`                                |
+| 公网访问接口不需要密码                        | 只在静态 location 写了 `auth_basic`，API location 漏了 | 两个 location 都加鉴权；用 `curl -i`（不带 `-u`）确认返回 401                                |
+| 上传背景图返回 413                            | nginx 默认 `client_max_body_size 1m`              | API location 里加 `client_max_body_size 24m;`，与后端 `MAX_BODY` 对齐                         |
+| 切版本后样式仍是旧的                          | 静态资源被强缓存                                  | 用 `Cache-Control: no-cache` 走 ETag；浏览器硬刷新                                             |
+| `manifest.json` 的 `source_commit` 为 unknown | root 执行时 git 判定仓库属主不可信                | `sudo git config --global --add safe.directory /opt/daily-card`                                |
+| `找不到中文字体`                              | Linux 没装 Noto CJK                               | `apt install fonts-noto-cjk` 后 `fc-cache -fv`                                                 |
+| 中文显示成方块                                | 命中的字体不含中文字形                            | 用 `--font` / `--font-bold` 指定 `.ttf/.ttc`                                                   |
+| 上传大图失败                                  | 超过 24MB                                         | 压缩图片；或同步调大 nginx `client_max_body_size` 与后端 `MAX_BODY`                            |
+| 改了主题没生效                                | 改的是出厂模板而非 `themes.json`                  | 确认 `DAILY_CARD_CONFIG` 指向的目录                                                            |
+| `/api/reveal` 返回 403                        | `--api-only` 下刻意禁用                           | 正常行为，前端已禁用该按钮；需要本地文件夹请走独立模式                                         |
 
 ## 7. 已知边界
 
