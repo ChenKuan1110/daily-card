@@ -2,6 +2,18 @@
 
 公开仓库为**单个干净初始提交**（历史重开），因此版本演进以本文件为准。
 
+## 0.5.1 · 2026-11-12 · 中文字体诊断与部署加固
+
+针对云服务器实测遇到的「装了 fonts-noto-cjk 仍报找不到中文字体」，把字体从隐式环境假设变成可诊断、可显式配置、可回归的一等公民。**渲染结果与 0.5.0 完全一致**（固定种子出图 SHA 相同）。
+
+- `cardgen.py` 字体探测由「硬编码文件名 × 目录」升级为四级：显式配置 → 精确名清单 → fontconfig `fc-list :lang=zh` → CJK 名称模式递归扫描；缺少粗体时退化成单文件渲染
+- 新增 `font_diagnostics()` 与 `python3 cardgen.py --font-diagnose`，输出 `source` / `fontconfig` / `cjk_files` / `hints`；找不到字体改抛 `FontNotFound`（带发行版安装命令），不再用 `sys.exit` 在 HTTP 线程里抛 `SystemExit`
+- 支持显式指定字体：环境变量 `DAILY_CARD_FONT` / `DAILY_CARD_FONT_BOLD`、`settings.json` 的 `font` / `font_bold`、CLI `--font` / `--font-bold`
+- `server.py` 的 `GET /api/health` 增加 `fonts` 字段；新增 `GET /api/fonts`，远程可直接拿到服务器字体状态与修复建议，无需 ssh
+- 新增 `scripts/test_fonts.py`：7 项断言，用 mock fontconfig 与临时目录模拟 RHEL 的 `.otf` 命名、非标准目录、缺粗体、显式配置、无字体提示，macOS CI 也能回归 Linux 差异
+- `scripts/selfcheck.sh` 从 8 步扩到 9 步：第 2 步增加字体诊断断言，新增第 9 步字体兜底模拟
+- `docs/DEPLOY.md` 重写第 1 节字体章节、补「装了字体仍报找不到」排障、补鉴权 401 自检命令并修复被格式化的表格；`SKILL.md`、`.env.example` 同步
+
 ## 0.5.0 · 2026-11-11 · 同域名子路径部署与前后端解耦
 
 面向「nginx 统一入口 + 同域名多服务 + `location /daily-card/`」的部署形态，改动集中在前端 URL 派生与部署层，**渲染逻辑与既有 API 路径不变**。

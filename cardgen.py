@@ -46,6 +46,7 @@
   --out PATH                     输出路径
   --seed INT                     贴纸布局随机种子（同种子同构图）
   --font / --font-bold PATH      自定义中文字体
+  --font-diagnose                输出中文字体探测诊断 JSON，不渲染
   --list-themes                  列出全部主题
 """
 
@@ -166,39 +167,208 @@ FONT_DIRS = [
     "/Library/Fonts/", os.path.expanduser("~/Library/Fonts/"),
     "/usr/share/fonts/", "/usr/share/fonts/opentype/noto/",
     "C:/Windows/Fonts/",
+    "/usr/share/fonts/custom/"
 ]
 LATIN_CANDIDATES = ["Montserrat-Medium.ttf", "Avenir Next.ttc", "Helvetica.ttc",
                     "DejaVuSans.ttf", "Arial.ttf"]
 
+# Linux 各发行版装出来的文件名与目录差异很大（NotoSansCJK-*.ttc / *.otf /
+# NotoSansCJKsc-* / google-noto-cjk / truetype/noto ...），精确名清单命中不了时
+# 依次用 fontconfig 查询与递归扫描兜底。
+CJK_NAME_RE = re.compile(
+    r"(noto.*cjk|noto.*sc|sourcehan|wenquanyi|droidsansfallback|"
+    r"simhei|msyh|pingfang|hiragino|stheiti)", re.I)
+BOLD_NAME_RE = re.compile(r"(bold|black|heavy|semibold|medium)", re.I)
+FONT_EXTS = (".ttc", ".ttf", ".otf")
+FONT_SCAN_DIRS = [
+    "/usr/share/fonts", "/usr/local/share/fonts",
+    os.path.expanduser("~/.fonts"),
+    os.path.expanduser("~/.local/share/fonts"),
+]
+
+FONT_INSTALL_HINTS = [
+    "Ubuntu / Debian: sudo apt install -y fonts-noto-cjk && sudo fc-cache -fv",
+    "RHEL / CentOS / Fedora: sudo dnf install -y google-noto-sans-cjk-fonts && sudo fc-cache -fv",
+    "已安装仍失败时显式指定：DAILY_CARD_FONT=/path/Regular.ttc DAILY_CARD_FONT_BOLD=/path/Bold.ttc",
+    "也可写进 settings.json 的 font / font_bold，或在 CLI 用 --font / --font-bold",
+    "查看完整诊断：python3 cardgen.py --font-diagnose",
+]
+
+
+class FontNotFound(RuntimeError):
+    """没有可用中文字体；消息自带诊断与修复建议。"""
+
+
+def _configured_fonts():
+    """显式配置：环境变量 > settings.json；CLI 参数在 find_fonts 里优先覆盖。"""
+    reg = os.environ.get("DAILY_CARD_FONT") or None
+    bold = os.environ.get("DAILY_CARD_FONT_BOLD") or None
+    try:
+        s = cfg.load_settings() or {}
+    except Exception:
+        s = {}
+    return (bold or s.get("font_bold") or None, reg or s.get("font") or None)
+
+
+def _locate(name):
+    if name and os.path.isabs(name) and os.path.isfile(name):
+        return name
+    for d in FONT_DIRS:
+        p = os.path.join(d, name)
+        if os.path.isfile(p):
+            return p
+    return None
+
+
+def _fontconfig_zh():
+    """问系统要真正的中文字体路径。None=没有 fontconfig，[]=有但没装中文字体。"""
+    try:
+        import subprocess
+        out = subprocess.run(
+            ["fc-list", "-f", "%{file}|%{family}|%{style}\n", ":lang=zh"],
+            capture_output=True, text=True, timeout=5, check=False)
+    except Exception:
+        return None
+    if out.returncode != 0:
+        return None
+    rows = []
+    for line in (out.stdout or "").splitlines():
+        parts = line.split("|", 2)
+        if len(parts) == 3 and os.path.isfile(parts[0]):
+            rows.append((parts[0], parts[1], parts[2]))
+    return rows
+
+
+def _scan_cjk_files():
+    """递归扫常见字体目录，按文件名模式找 CJK 字体（一次渲染最多约 400 个候选）。"""
+    paths, seen_dirs = [], []
+    for root in FONT_SCAN_DIRS:
+        if not os.path.isdir(root):
+            continue
+        seen_dirs.append(root)
+        for dirpath, _dirs, files in os.walk(root):
+            for fn in files:
+                if fn.lower().endswith(FONT_EXTS) and CJK_NAME_RE.search(fn):
+                    paths.append(os.path.join(dirpath, fn))
+            if len(paths) >= 400:
+                break
+    return sorted(paths), seen_dirs
+
+
+def _is_bold(path, style=""):
+    return bool(BOLD_NAME_RE.search(os.path.basename(path))
+                or BOLD_NAME_RE.search(style or ""))
+
+
+def _pick_fc(rows):
+    def rank(row):
+        fam = (row[1] or "").lower()
+        if "noto" in fam and "cjk" in fam:
+            return 0
+        if "source han" in fam or "wenquanyi" in fam:
+            return 1
+        return 2
+    ordered = sorted(rows, key=rank)
+    bold = next((r[0] for r in ordered if _is_bold(r[0], r[2])), None)
+    reg = next((r[0] for r in ordered if not _is_bold(r[0], r[2])), None)
+    return bold, reg
+
+
+def _pick_paths(paths):
+    bold = next((p for p in paths if _is_bold(p)), None)
+    reg = next((p for p in paths if not _is_bold(p)), None)
+    return bold, reg
+
+
+def resolve_fonts(bold_spec=None, reg_spec=None):
+    """按 显式 > 精确名 > fontconfig > 递归扫描 的顺序解析，返回 (bold, bi, reg, ri, source, warnings)。"""
+    cfg_bold, cfg_reg = _configured_fonts()
+    b, r = bold_spec or cfg_bold, reg_spec or cfg_reg
+    warnings = []
+    for label, p in (("粗体", b), ("常规", r)):
+        if p and not os.path.isfile(p):
+            warnings.append("%s字体的显式路径不存在：%s" % (label, p))
+    if b and not os.path.isfile(b):
+        b = None
+    if r and not os.path.isfile(r):
+        r = None
+    if b and r:
+        return (b, 0, r, 0, "explicit", warnings)
+
+    for bd, bi, rd, ri in FONT_CANDIDATES:
+        pb, pr = _locate(bd), _locate(rd)
+        if pb and pr:
+            return (b or pb, 0 if b else bi, r or pr, 0 if r else ri,
+                    "candidates", warnings)
+    for bd, bi, rd, ri in FONT_CANDIDATES:
+        pb = _locate(bd)
+        if pb:
+            return (b or pb, 0 if b else bi, r or pb, 0 if r else 0,
+                    "candidates-single", warnings)
+
+    fc = _fontconfig_zh()
+    if fc:
+        fb, fr = _pick_fc(fc)
+        if fb and fr:
+            return (b or fb, 0, r or fr, 0, "fontconfig", warnings)
+        if fb or fr:
+            p = fb or fr
+            return (b or p, 0, r or p, 0, "fontconfig-single", warnings)
+
+    paths, _ = _scan_cjk_files()
+    gb, gr = _pick_paths(paths)
+    if gb and gr:
+        return (b or gb, 0, r or gr, 0, "glob", warnings)
+    if gb or gr:
+        p = gb or gr
+        return (b or p, 0, r or p, 0, "glob-single", warnings)
+
+    return (None, 0, None, 0, "none", warnings)
+
+
+def font_diagnostics(bold_spec=None, reg_spec=None):
+    """结构化字体诊断，供 --font-diagnose、/api/fonts、/api/health 与自检共用。"""
+    b, bi, r, ri, source, warnings = resolve_fonts(bold_spec, reg_spec)
+    fc = _fontconfig_zh()
+    paths, dirs = _scan_cjk_files()
+    hints = list(warnings)
+    if not (b and r):
+        state = ("不可用" if fc is None else
+                 "可用但系统没有中文字体" if not fc else
+                 "找到 %d 个中文字体但均未能解析成可用文件" % len(fc))
+        hints.append("fontconfig %s；递归扫描到 %d 个候选字体文件" % (state, len(paths)))
+        hints.extend(FONT_INSTALL_HINTS)
+    return {
+        "ok": bool(b and r),
+        "source": source,
+        "bold": b, "bold_index": bi,
+        "regular": r, "regular_index": ri,
+        "fontconfig": "unavailable" if fc is None else ("empty" if not fc else "ok"),
+        "fontconfig_zh_count": len(fc) if fc else 0,
+        "scanned_dirs": dirs,
+        "cjk_files": paths[:12],
+        "cjk_file_count": len(paths),
+        "hints": hints,
+    }
+
 
 def find_fonts(bold_path=None, reg_path=None):
-    def locate(name):
-        if name and os.path.isabs(name) and os.path.exists(name):
-            return name
-        for d in FONT_DIRS:
-            p = os.path.join(d, name)
-            if os.path.exists(p):
-                return p
-        return None
-
-    if bold_path and reg_path:
-        return (bold_path, 0, reg_path, 0)
-    for b, bi, r, ri in FONT_CANDIDATES:
-        pb, pr = locate(b), locate(r)
-        if pb and pr:
-            return (bold_path or pb, bi, reg_path or pr, ri)
-    for b, bi, r, ri in FONT_CANDIDATES:
-        pb = locate(b)
-        if pb:
-            return (pb, bi, pb, 0)
-    sys.exit("找不到中文字体，请用 --font / --font-bold 指定一个 .ttf/.ttc 字体文件")
+    b, bi, r, ri, source, warnings = resolve_fonts(bold_path, reg_path)
+    if b and r:
+        return (b, bi, r, ri)
+    d = font_diagnostics(bold_path, reg_path)
+    raise FontNotFound("找不到中文字体，无法渲染。\n"
+                       + "\n".join("  - " + h for h in d["hints"]))
 
 
 def find_latin():
+    dirs = FONT_DIRS + FONT_SCAN_DIRS + [
+        "/usr/share/fonts/truetype/dejavu/",
+        "/usr/share/fonts/truetype/liberation/"]
     for name in LATIN_CANDIDATES:
-        for d in FONT_DIRS:
+        for d in dirs:
             p = os.path.join(d, name)
-            if os.path.exists(p):
+            if os.path.isfile(p):
                 return (p, 1 if name == "Avenir Next.ttc" else 0)
     return None
 
@@ -964,6 +1134,8 @@ def main():
     ap.add_argument("--seed", type=int, default=bootstrap.get("seed"))
     ap.add_argument("--font", help="常规中文字体路径")
     ap.add_argument("--font-bold", help="粗体中文字体路径")
+    ap.add_argument("--font-diagnose", action="store_true",
+                    help="输出中文字体探测诊断 JSON，不渲染图片")
     ap.add_argument("--config-dir", help="指定配置目录（默认 ./config）")
     ap.add_argument("--init-config", action="store_true", help="从出厂模板重建配置")
     ap.add_argument("--list-themes", action="store_true")
@@ -975,6 +1147,10 @@ def main():
     if args.config_dir:
         cfg.set_config_dir(args.config_dir)
     cfg.ensure_config()
+    if args.font_diagnose:
+        import json
+        print(json.dumps(font_diagnostics(), ensure_ascii=False, indent=2))
+        return
     if args.init_config:
         ok, msg = cfg.reset_themes()
         print("  %s %s" % ("✅" if ok else "❌", msg))
@@ -1010,11 +1186,14 @@ def main():
 
     theme_name = pick_theme(title + " " + subtitle, args.theme, themes,
                             cfg.default_theme_id())
-    out, used = render(
-        title, subtitle, date=args.date, platform=args.platform,
-        theme_name=theme_name, bg_image=args.bg_image, brand=args.brand,
-        out=args.out, seed=args.seed, bold_spec=args.font_bold, reg_spec=args.font,
-        themes=themes, settings=settings, bg_scheme=args.bg_scheme)
+    try:
+        out, used = render(
+            title, subtitle, date=args.date, platform=args.platform,
+            theme_name=theme_name, bg_image=args.bg_image, brand=args.brand,
+            out=args.out, seed=args.seed, bold_spec=args.font_bold, reg_spec=args.font,
+            themes=themes, settings=settings, bg_scheme=args.bg_scheme)
+    except FontNotFound as e:
+        sys.exit(str(e))
     print("\n  ✅ 生成完成")
     print("     主题：%s  (%s)" % (used, themes[used]["label"]))
     print("     文件：%s\n" % out)

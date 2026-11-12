@@ -224,13 +224,20 @@ class Handler(BaseHTTPRequestHandler):
         q = parse_qs(parsed.query)
         try:
             if path == "/api/health":
+                f = cardgen.font_diagnostics()
                 return self._json({
                     "ok": True,
                     "version": _version(),
                     "mode": "api-only" if self.api_only else "standalone",
                     "serves_static": not self.api_only,
                     "config_dir": cfg.config_dir(),
+                    "fonts": {"ok": f["ok"], "source": f["source"],
+                              "bold": f["bold"], "regular": f["regular"],
+                              "fontconfig": f["fontconfig"], "hints": f["hints"]},
                 })
+            if path == "/api/fonts":
+                # 远程排障用：字体来源、扫描到的候选、修复建议，不需要登录服务器
+                return self._json({"ok": True, "diagnostics": cardgen.font_diagnostics()})
             if path == "/api/bootstrap":
                 return self._json({
                     "ok": True,
@@ -271,6 +278,8 @@ class Handler(BaseHTTPRequestHandler):
             ext = os.path.splitext(full)[1].lower()
             with open(full, "rb") as f:
                 return self._send(200, f.read(), MIME.get(ext, "application/octet-stream"))
+        except cardgen.FontNotFound as e:
+            return self._error(e)          # 预期错误，不打堆栈
         except Exception as e:
             traceback.print_exc()
             return self._error(e)
@@ -325,6 +334,8 @@ class Handler(BaseHTTPRequestHandler):
                     os.startfile(target)
                 return self._json({"ok": True, "path": target})
             return self._error("未知接口：%s" % path, 404)
+        except cardgen.FontNotFound as e:
+            return self._error(e)          # 预期错误，不打堆栈
         except SystemExit as e:
             return self._error(e)
         except Exception as e:

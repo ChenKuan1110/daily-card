@@ -2,8 +2,8 @@
 name: daily-card
 description: 生成「每日一句 / 打卡」风格社交卡片图，适用于朋友圈、公众号、小红书。当用户要求做卡片图、日签、打卡图、语录海报、带标题+副标题+日期的分享图，或要调整主题配色/贴纸元素、从背景图自动取配色时使用。触发词：每日一句、打卡图、日签、分享图、朋友圈配图、小红书封面、公众号首图、卡片生成、daily card、社交卡片。
 license: MIT
-version: "0.5.0"
-compatibility: "Python 3.9+、Pillow、系统需有中文字体（macOS 自带；Linux 需 Noto Sans CJK）"
+version: "0.5.1"
+compatibility: "Python 3.9+、Pillow、系统需有中文字体（macOS 自带；Linux 需 Noto Sans CJK，支持自动诊断与显式指定路径）"
 ---
 
 # daily-card · 社交卡片生成器
@@ -25,7 +25,7 @@ python3 -m pip install -r requirements.txt
 ./scripts/selfcheck.sh          # 之后随时可单独自检（也是 CI 入口）
 ```
 
-不需要联网、不需要 AI 接口、不需要 API Key。中文字体自动探测：macOS 用 Hiragino Sans GB / PingFang，Linux 用 Noto Sans CJK，Windows 用微软雅黑；都找不到时会退出并提示用 `--font` / `--font-bold` 指定字体文件。
+不需要联网、不需要 AI 接口、不需要 API Key。中文字体按「显式配置 → 精确名 → fontconfig → 递归扫描」四级自动探测：macOS 用 Hiragino Sans GB / PingFang，Linux 用 Noto Sans CJK（兼容各发行版的非标准文件名与目录），Windows 用微软雅黑。**装了字体仍报「找不到中文字体」时**，先跑 `python3 cardgen.py --font-diagnose` 看 `source` 与 `hints`；也可用环境变量 `DAILY_CARD_FONT_BOLD` / `DAILY_CARD_FONT`、`settings.json` 的 `font_bold` / `font`，或 CLI `--font` / `--font-bold` 显式指定。远程服务可看 `GET /api/fonts`。详见 `docs/DEPLOY.md` 第 1 节。
 
 **agent 优先用本地 CLI，不需要启动任何服务。** 网页后台与远程 API 都是可选后端，见「两种可选后端」。
 
@@ -50,6 +50,7 @@ python3 cardgen.py "今天也要好好生活" "把普通的日子，过得响亮
 | `--seed` | 构图随机种子，同种子同构图 | `--seed 42` |
 | `--bg-image` | 自定义背景图（自动取色） | `--bg-image ./bg.jpg` |
 | `--bg-scheme` | 选用第 N 套图片配色，或自定义主色 | `--bg-scheme 2` / `--bg-scheme "#C2185B"` |
+| `--font-diagnose` | 输出中文字体探测诊断 JSON，不渲染 | `python3 cardgen.py --font-diagnose` |
 | `--list-schemes` | 输出背景图的候选配色方案 JSON | `python3 cardgen.py --bg-image bg.jpg --list-schemes` |
 | `--list-themes` | 列出全部主题与贴纸 | |
 | `--config-dir` | 使用另一套配置目录 | |
@@ -127,7 +128,8 @@ agent 调远程接口时，`DAILY_CARD_URL` 要填到**前缀**为止，例如 `
 
 | 接口 | 说明 |
 | --- | --- |
-| `GET /api/health` | 健康检查：版本、运行模式、配置目录（无需启动前端） |
+| `GET /api/health` | 健康检查：版本、运行模式、配置目录、字体状态（无需启动前端） |
+| `GET /api/fonts` | 远程字体诊断：命中层级、候选文件、修复建议（无需 ssh 登录服务器） |
 | `GET /api/bootstrap` | 一次拿到 themes_doc / settings / registry / platforms / 路径 |
 | `POST /api/render` | 生成预览，返回 `{png: dataURL, path, theme, size, bytes}` |
 | `POST /api/save` | 生成并写入 `output/`，返回落盘路径 |
@@ -255,6 +257,7 @@ open("/tmp/draft-card.png", "wb").write(base64.b64decode(r["card"].split(",", 1)
 - `output/`、`uploads/`、`config/themes.json`、`config/settings.json`、`.env` 均被 `.gitignore` 忽略；`examples/` 是 demo 成品图（约 6.7 MB，不参与运行，可随时删除）。
 - 主题 ID 只允许字母数字 `-` `_`；颜色必须是 `#RRGGBB`；贴纸 ID 必须存在于 `config/stickers.json`。
 - 图片尺寸越大、超采样越高越慢；默认 2x 超采样已够清晰。
+- 中文字体是唯一的系统级依赖：换机器报「找不到中文字体」时先 `python3 cardgen.py --font-diagnose`，远程服务看 `/api/fonts`；Linux 各发行版字体文件名不统一，0.5.1 起会用 fontconfig 与目录扫描兜底，装完字体 `fc-cache -fv` 后无需重启服务。
 - `server.py` **零鉴权**且默认只监听 `127.0.0.1`。公开部署前务必加反向代理鉴权或 IP 白名单；云部署用 `--api-only` 只暴露 API，详见 `docs/DEPLOY.md`。
 - 源码里不允许出现 `src="/..."` / `href="/..."` / `"/api/..."` 这类域名根绝对路径，`selfcheck.sh` 会阻断这类回归；所有请求统一走 `url()`。
 

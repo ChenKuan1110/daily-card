@@ -22,7 +22,7 @@
 | ---------- | ----------------------------- | --------------------------------------------------- |
 | Python   | 3.9+                        | `python3 --version`                               |
 | Pillow   | 见 `requirements.txt`       | `python3 -c "import PIL; print(PIL.__version__)"` |
-| 中文字体 | Noto Sans CJK（Linux 必需） | `fc-list | grep -i "noto.*cjk"`                   |
+| 中文字体 | Noto Sans CJK（Linux 必需） | `python3 cardgen.py --font-diagnose`              |
 | git      | 用于后续更新                | `git --version`                                   |
 | nginx    | 统一入口，已有其它服务      | `nginx -v`                                        |
 
@@ -36,9 +36,27 @@ sudo apt update && sudo apt install -y fonts-noto-cjk
 sudo dnf install -y google-noto-sans-cjk-fonts
 
 sudo fc-cache -fv
+python3 cardgen.py --font-diagnose        # 应返回 "ok": true
 ```
 
-渲染器按 `Hiragino Sans GB → PingFang → STHeiti → NotoSansCJK → 微软雅黑` 顺序探测；Linux 上靠 NotoSansCJK 命中。字体放在自定义位置时，用 `--font` / `--font-bold` 指定。
+### 装了字体仍报「找不到中文字体」
+
+各发行版产物的**文件名与目录并不统一**（`NotoSansCJK-*.ttc`、`NotoSansCJKsc-*.otf`、`google-noto-cjk/`、`truetype/noto/` …）。0.5.1 起按四级顺序解析，不再只认硬编码文件名：
+
+1. **显式配置**（最高优先）：环境变量 `DAILY_CARD_FONT_BOLD` / `DAILY_CARD_FONT`，或 `settings.json` 的 `font_bold` / `font`，或 CLI `--font` / `--font-bold`
+2. **精确名清单**：macOS 的 Hiragino / PingFang、Windows 微软雅黑、标准 NotoSansCJK 文件名
+3. **fontconfig 查询**：`fc-list -f '%{file}|%{family}|%{style}\n' :lang=zh`，让系统自己报出真实路径
+4. **递归扫描**：`/usr/share/fonts`、`/usr/local/share/fonts`、`~/.fonts` 等目录下按 CJK 名称模式匹配；只有常规体没有粗体时退化成单文件渲染
+
+排障三步（第二条无需 ssh 登录服务器）：
+
+```bash
+python3 cardgen.py --font-diagnose
+curl -s http://127.0.0.1:8777/api/fonts
+curl -s http://127.0.0.1:8777/api/health | python3 -c 'import json,sys; print(json.load(sys.stdin)["fonts"])'
+```
+
+诊断里的 `source` 说明命中了哪一级：`explicit` / `candidates` / `fontconfig` / `glob` / `none`；`fontconfig: empty` 表示系统确实没有中文字体，`hints` 会给出对应发行版的安装命令。探测结果**不缓存**，装完字体并 `fc-cache -fv` 后无需重启 Python 服务。若自动探测始终不理想，用第 1 级显式指定路径最稳妥。
 
 ## 2. 安装
 
@@ -47,10 +65,10 @@ sudo mkdir -p /opt
 sudo git clone https://github.com/ChenKuan1110/daily-card.git /opt/daily-card
 cd /opt/daily-card
 ./install.sh                 # 装依赖、初始化私有配置、跑自检
-./scripts/selfcheck.sh       # 单独复验，共 8 步（含子路径链路模拟）
+./scripts/selfcheck.sh       # 单独复验，共 9 步（含子路径链路与字体兜底模拟）
 ```
 
-`install.sh` 幂等，重复执行不会覆盖已有的 `config/themes.json`。CI 里直接跑 `./scripts/selfcheck.sh`：只读检查 + 一次临时渲染 + 进程内的子路径代理回归，不写 `output/`、不改配置、不需要 nginx。
+`install.sh` 幂等，重复执行不会覆盖已有的 `config/themes.json`。CI 里直接跑 `./scripts/selfcheck.sh`：只读检查 + 一次临时渲染 + 进程内的子路径代理回归 + 字体兜底模拟，不写 `output/`、不改配置、不需要 nginx、不依赖服务器上真实存在的字体。
 
 ### 私有配置放哪里
 
@@ -86,7 +104,7 @@ Python 服务以 `--api-only` 运行，只回答 `/api/*`；静态资源不经�
 ```bash
 cd /opt/daily-card
 sudo mkdir -p /opt/daily-card-web
-sudo ./scripts/publish-web.sh                # 版本目录取 VERSION，如 v0.5.0
+sudo ./scripts/publish-web.sh                # 版本目录取 VERSION，如 v0.5.1
 sudo ./scripts/publish-web.sh --list          # 查看已发布版本与当前指向
 sudo ./scripts/publish-web.sh --rollback      # 回滚到上一个版本
 sudo ./scripts/publish-web.sh --rollback v0.4.9   # 回滚到指定版本
@@ -193,13 +211,20 @@ sudo systemctl status daily-card
 ```bash
 # 后端（本机）
 curl -s http://127.0.0.1:8777/api/health
-# {"ok":true,"version":"0.5.0","mode":"api-only","serves_static":false,...}
+# {"ok":true,"version":"0.5.1","mode":"api-only","serves_static":false,"fonts":{"ok":true,...},...}
+curl -s http://127.0.0.1:8777/api/fonts        # 字体来源与修复建议
+
+# 公网（不带凭据应返回 401，这一步专门验证鉴权真的生效）
+curl -i https://your-domain/daily-card/api/health
+# HTTP/1.1 401 Unauthorized + WWW-Authenticate: Basic realm="daily-card"
 
 # 公网（带鉴权）
 curl -u carduser:PASSWORD -I https://your-domain/daily-card/
 curl -u carduser:PASSWORD -s  https://your-domain/daily-card/api/health
 curl -u carduser:PASSWORD -s  https://your-domain/daily-card/style.css | head -3
 ```
+
+**鉴权自检**：不带 `-u` 的请求若返回 200/404 而不是 401，说明 API location 漏了 `auth_basic`（两个 location 都要加），此时接口是裸奔的。`api/health` 与 `api/fonts` 会回显服务器路径，属于内网诊断信息；不希望暴露可在 nginx 层单独限制这两个路径。
 
 再打开 `https://your-domain/daily-card/` 检查三个面板：设计、主题配置、全局设置，以及贴纸图标是否加载。页面里所有资源请求都应以 `/daily-card/` 开头。
 
@@ -266,7 +291,7 @@ sudo systemctl restart daily-card      # 仅后端代码变化时
 
 ### CI：每次 push 做自检
 
-`scripts/selfcheck.sh` 是统一入口，8 个步骤：Python 语法、依赖与私有配置、主题/平台清单、PNG 冒烟渲染、私有数据忽略检查、前端 JS 语法、前端路径可移植性（含 BASE 推导 4 组单测）、子路径部署模拟（10 项链路断言）。
+`scripts/selfcheck.sh` 是统一入口，9 个步骤：Python 语法、依赖与私有配置（含中文字体诊断）、主题/平台清单、PNG 冒烟渲染、私有数据忽略检查、前端 JS 语法、前端路径可移植性（含 BASE 推导 4 组单测）、子路径部署模拟（10 项链路断言）、字体兜底路径模拟（7 项断言，mock fontconfig 与临时目录，Linux 命名差异在 macOS CI 上也能回归）。
 
 ```yaml
 name: selfcheck
@@ -296,21 +321,21 @@ ssh deploy@server 'cd /opt/daily-card && git pull && ./install.sh --no-deps && s
 ## 6. 排障
 
 
-| 现象                                          | 原因                                              | 处理                                                                                           |
-| ----------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| 页面能打开但样式/脚本全 404                   | 前端仍是旧版绝对路径，或 nginx `alias` 少了尾斜杠 | 确认发布的是 v0.5.0+；检查页面源码应为 `href="style.css"`；`alias` 必须以 `/` 结尾             |
-| 接口 404 或打到同域名别的服务                 | 前端 URL 未带前缀，或 nginx 没剥前缀              | 确认 `/daily-card` 有 301；用 `curl` 看实际请求路径；核对 `rewrite` + 不带 URI 的 `proxy_pass` |
-| 接口返回 `文件不存在：api/xxx`、`未知接口：api/xxx` | `rewrite` 替换串写成 `$1`，后端收到的路径没有前导 `/` | 改成 `rewrite ^/daily-card/(.*)$ /$1 break;`；`proxy_pass` 去掉尾部 `/`。用 `POST /daily-card/api/health`，错误文案会直接回显后端看到的路径，可据此判断 |
-| 后端收到 `/bootstrap` 而非 `/api/bootstrap`   | `proxy_pass` 带了 URI，被 nginx 二次替换          | 改成 `proxy_pass http://127.0.0.1:8777;` 配 `rewrite ... break`                                |
-| 公网访问接口不需要密码                        | 只在静态 location 写了 `auth_basic`，API location 漏了 | 两个 location 都加鉴权；用 `curl -i`（不带 `-u`）确认返回 401                                |
-| 上传背景图返回 413                            | nginx 默认 `client_max_body_size 1m`              | API location 里加 `client_max_body_size 24m;`，与后端 `MAX_BODY` 对齐                         |
-| 切版本后样式仍是旧的                          | 静态资源被强缓存                                  | 用 `Cache-Control: no-cache` 走 ETag；浏览器硬刷新                                             |
-| `manifest.json` 的 `source_commit` 为 unknown | root 执行时 git 判定仓库属主不可信                | `sudo git config --global --add safe.directory /opt/daily-card`                                |
-| `找不到中文字体`                              | Linux 没装 Noto CJK                               | `apt install fonts-noto-cjk` 后 `fc-cache -fv`                                                 |
-| 中文显示成方块                                | 命中的字体不含中文字形                            | 用 `--font` / `--font-bold` 指定 `.ttf/.ttc`                                                   |
-| 上传大图失败                                  | 超过 24MB                                         | 压缩图片；或同步调大 nginx `client_max_body_size` 与后端 `MAX_BODY`                            |
-| 改了主题没生效                                | 改的是出厂模板而非 `themes.json`                  | 确认 `DAILY_CARD_CONFIG` 指向的目录                                                            |
-| `/api/reveal` 返回 403                        | `--api-only` 下刻意禁用                           | 正常行为，前端已禁用该按钮；需要本地文件夹请走独立模式                                         |
+| 现象                                                | 原因                                                                                                                                                                                                            | 处理                                                                                           |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| 页面能打开但样式/脚本全 404                         | 前端仍是旧版绝对路径，或 nginx `alias` 少了尾斜杠                                                                                                                                                               | 确认发布的是 v0.5.0+；检查页面源码应为 `href="style.css"`；`alias` 必须以 `/` 结尾             |
+| 接口 404 或打到同域名别的服务                       | 前端 URL 未带前缀，或 nginx 没剥前缀                                                                                                                                                                            | 确认 `/daily-card` 有 301；用 `curl` 看实际请求路径；核对 `rewrite` + 不带 URI 的 `proxy_pass` |
+| 接口返回 `文件不存在：api/xxx`、`未知接口：api/xxx` | `rewrite` 替换串写成 `$1`，后端收到的路径没有前导 `/` | 改成 `rewrite ^/daily-card/(.*)$ /$1 break;`；`proxy_pass` 去掉尾部 `/`。用 `POST /daily-card/api/health`，错误文案会直接回显后端看到的路径，可据此判断 |                                                                                                |
+| 后端收到 `/bootstrap` 而非 `/api/bootstrap`         | `proxy_pass` 带了 URI，被 nginx 二次替换                                                                                                                                                                        | 改成 `proxy_pass http://127.0.0.1:8777;` 配 `rewrite ... break`                                |
+| 公网访问接口不需要密码                              | 只在静态 location 写了 `auth_basic`，API location 漏了                                                                                                                                                          | 两个 location 都加鉴权；用 `curl -i`（不带 `-u`）确认返回 401                                  |
+| 上传背景图返回 413                                  | nginx 默认 `client_max_body_size 1m`                                                                                                                                                                            | API location 里加 `client_max_body_size 24m;`，与后端 `MAX_BODY` 对齐                          |
+| 切版本后样式仍是旧的                                | 静态资源被强缓存                                                                                                                                                                                                | 用 `Cache-Control: no-cache` 走 ETag；浏览器硬刷新                                             |
+| `manifest.json` 的 `source_commit` 为 unknown       | root 执行时 git 判定仓库属主不可信                                                                                                                                                                              | `sudo git config --global --add safe.directory /opt/daily-card`                                |
+| `找不到中文字体` | 系统没装中文字体，或装到了非标准目录 / 非标准文件名 | 先 `python3 cardgen.py --font-diagnose` 看 `source` 与 `hints`；按提示装字体并 `fc-cache -fv`；仍不行用 `DAILY_CARD_FONT` / `DAILY_CARD_FONT_BOLD` 显式指定 |
+| 中文显示成方块                                      | 命中的字体不含中文字形                                                                                                                                                                                          | 用 `--font` / `--font-bold` 指定 `.ttf/.ttc`                                                   |
+| 上传大图失败                                        | 超过 24MB                                                                                                                                                                                                       | 压缩图片；或同步调大 nginx `client_max_body_size` 与后端 `MAX_BODY`                            |
+| 改了主题没生效                                      | 改的是出厂模板而非 `themes.json`                                                                                                                                                                                | 确认 `DAILY_CARD_CONFIG` 指向的目录                                                            |
+| `/api/reveal` 返回 403                              | `--api-only` 下刻意禁用                                                                                                                                                                                         | 正常行为，前端已禁用该按钮；需要本地文件夹请走独立模式                                         |
 
 ## 7. 已知边界
 

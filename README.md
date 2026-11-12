@@ -123,4 +123,4 @@ install.sh               幂等安装 / 更新
 
 ## 版本与许可
 
-当前版本 `0.5.0`，版本记录见 [CHANGELOG.md](CHANGELOG.md)。采用 [MIT](LICENSE) 许可。
+当前版本 `0.5.1`，版本记录见 [CHANGELOG.md](CHANGELOG.md)。采用 [MIT](LICENSE) 许可。

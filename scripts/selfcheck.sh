@@ -13,11 +13,11 @@ trap cleanup EXIT
 
 echo "  项目根：$ROOT"
 
-echo "  [1/8] Python 语法"
-python3 -m py_compile cardgen.py cardconfig.py cardpreview.py server.py scripts/test_subpath.py
+echo "  [1/9] Python 语法"
+python3 -m py_compile cardgen.py cardconfig.py cardpreview.py server.py scripts/test_subpath.py scripts/test_fonts.py
 echo "        OK"
 
-echo "  [2/8] 依赖与私有配置"
+echo "  [2/9] 依赖与私有配置"
 python3 - <<'PY'
 import cardconfig as cfg
 cfg.ensure_config()
@@ -28,13 +28,18 @@ assert t, "主题为空"
 assert r.get("stickers"), "贴纸注册表为空"
 print("        主题 %d 套 / 贴纸 %d 个 / 纹样 %d 种 / 默认平台 %s" % (
     len(t), len(r["stickers"]), len(r.get("motifs", [])), s.get("platform")))
+import cardgen
+f = cardgen.font_diagnostics()
+assert f["ok"], "未找到中文字体：" + "；".join(f["hints"])
+print("        中文字体 %s（来源 %s / fontconfig %s）" % (
+    f["regular"], f["source"], f["fontconfig"]))
 PY
 
-echo "  [3/8] 主题与平台清单"
+echo "  [3/9] 主题与平台清单"
 python3 cardgen.py --list-themes > /dev/null
 echo "        OK"
 
-echo "  [4/8] 渲染冒烟"
+echo "  [4/9] 渲染冒烟"
 TMP_PNG="$(mktemp "${TMPDIR:-/tmp}/dc-selfcheck-XXXXXX")"
 python3 cardgen.py "自检卡片" "健康自检 · 冒烟渲染" \
   --platform moments --theme study --seed 7 --out "$TMP_PNG" > /dev/null
@@ -50,7 +55,7 @@ with Image.open(p) as im:
         im.width, im.height, os.path.getsize(p) / 1024))
 PY
 
-echo "  [5/8] 私有数据未纳入版本管理"
+echo "  [5/9] 私有数据未纳入版本管理"
 if command -v git >/dev/null 2>&1 && [ -d .git ]; then
   for f in config/themes.json config/settings.json .env; do
     if git check-ignore -q "$f"; then
@@ -63,7 +68,7 @@ else
   echo "        跳过（非 git 工作树）"
 fi
 
-echo "  [6/8] 前端脚本语法"
+echo "  [6/9] 前端脚本语法"
 if command -v node >/dev/null 2>&1; then
   node --check web/app.js
   echo "        OK"
@@ -71,7 +76,7 @@ else
   echo "        跳过（未安装 node）"
 fi
 
-echo "  [7/8] 前端路径可移植性"
+echo "  [7/9] 前端路径可移植性"
 python3 - <<'PYEOF'
 import re
 import pathlib
@@ -115,7 +120,10 @@ else
   echo "        跳过 BASE 单测（未安装 node）"
 fi
 
-echo "  [8/8] 子路径部署模拟（nginx 剥前缀 + 静态分离）"
+echo "  [8/9] 子路径部署模拟（nginx 剥前缀 + 静态分离）"
 python3 scripts/test_subpath.py
+
+echo "  [9/9] 字体兜底路径模拟（Linux 命名差异 / 显式配置 / 缺字体提示）"
+python3 scripts/test_fonts.py
 
 echo "  自检全部通过"
